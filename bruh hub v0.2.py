@@ -15,6 +15,15 @@ ROOT = Path(__file__).parent
 BRUH_CREATOR = ROOT / "bruh_creator.py"
 
 
+def print_startup_banner() -> None:
+    print(".bruh hub v0.2")
+    print("Copyright (C) 2026 YourLocalPotato")
+    print()
+    print("This program comes with ABSOLUTELY NO WARRANTY.")
+    print("This is free software, and you are welcome to redistribute it")
+    print("under certain conditions.")
+
+
 def run_command(args: list[str]) -> int:
     proc = subprocess.run(args, text=True)
     return proc.returncode
@@ -30,7 +39,7 @@ def prompt_path(prompt: str) -> Path:
 
 
 def main() -> None:
-    print(".bruh hub v0.2")
+    print_startup_banner()
     while True:
         choice = input("Pack or unpack? (p/u) or q to quit: ").strip().lower()
         if choice in ("q", "quit"):

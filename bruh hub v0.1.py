@@ -47,6 +47,15 @@ def setup_logger(level: int = logging.INFO) -> logging.Logger:
 logger = setup_logger()
 
 
+def print_startup_banner() -> None:
+    print(".bruh hub v0.1")
+    print("Copyright (C) 2026 YourLocalPotato")
+    print()
+    print("This program comes with ABSOLUTELY NO WARRANTY.")
+    print("This is free software, and you are welcome to redistribute it")
+    print("under certain conditions.")
+
+
 # --- header helpers --------------------------------------------
 def write_header(f: BinaryIO, original_name: str, original_size: int) -> None:
     """Write the v0.1 header to file-like `f`.
@@ -163,6 +172,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    print_startup_banner()
     p = build_parser()
     args = p.parse_args(argv)
 
