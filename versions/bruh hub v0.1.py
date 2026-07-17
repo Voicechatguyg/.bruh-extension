@@ -46,6 +46,7 @@ def print_startup_banner() -> None:
     print("This program comes with ABSOLUTELY NO WARRANTY.")
     print("This is free software, and you are welcome to redistribute it")
     print("under certain conditions.")
+    print()
 
 
 # --- header helpers --------------------------------------------
