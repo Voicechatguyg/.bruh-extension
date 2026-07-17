@@ -1,3 +1,11 @@
+"""
+bruh hub v0.2
+Copyright (C) 2026 YourLocalPotato
+
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it
+under certain conditions.
+"""
 from __future__ import annotations
 
 import logging
@@ -8,7 +16,14 @@ from typing import BinaryIO
 
 # --- constants -------------------------------------------------
 
-BRUH_MAGIC = b"BRUHv1\x00"  # 8 bytes
+BRUH_MAGIC = b"BRUH"  # 4 bytes
+VERSION = b"v0.2"  # 4 bytes
+
+SUPPORTED_VERSIONS = [
+    b"v0.1",
+    b"v0.2"
+]
+
 _FILENAME_LEN_FMT = ">H"
 _FILESIZE_FMT = ">Q"
 
@@ -51,6 +66,7 @@ def write_header(f: BinaryIO, original_name: str, original_size: int) -> None:
         raise ValueError("filename too long")
 
     f.write(BRUH_MAGIC)
+    f.write(VERSION)
     f.write(struct.pack(_FILENAME_LEN_FMT, len(name_bytes)))
     f.write(name_bytes)
     f.write(struct.pack(_FILESIZE_FMT, original_size))
@@ -62,6 +78,12 @@ def read_header(f: BinaryIO) -> tuple[str, int]:
     if magic != BRUH_MAGIC:
         raise ValueError("Not a .bruh file (bad magic)")
 
+    version = f.read(len(VERSION))
+
+    if version not in SUPPORTED_VERSIONS:
+        raise ValueError(f"Unsupported .bruh version: {version.decode('utf-8')}")
+    else:
+        pass # Version is supported; proceed with reading the header    
     raw = f.read(struct.calcsize(_FILENAME_LEN_FMT))
 
     if len(raw) != struct.calcsize(_FILENAME_LEN_FMT):

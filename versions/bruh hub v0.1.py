@@ -1,6 +1,10 @@
 """
 bruh hub v0.1
+Copyright (C) 2026 YourLocalPotato
 
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it
+under certain conditions.
 """
 from __future__ import annotations
 
@@ -12,7 +16,8 @@ from typing import BinaryIO
 
 
 # --- constants -------------------------------------------------
-BRUH_MAGIC = b"BRUHv1\x00"  # 8 bytes
+BRUH_MAGIC = b"BRUH" # 4 bytes
+VERSION = b"v0.1" # 4 bytes
 _FILENAME_LEN_FMT = ">H"   # unsigned short, big-endian (2 bytes)
 _FILESIZE_FMT = ">Q"       # unsigned long long, big-endian (8 bytes)
 
@@ -47,12 +52,13 @@ def print_startup_banner() -> None:
 def write_header(f: BinaryIO, original_name: str, original_size: int) -> None:
     """Write the v0.1 header to file-like `f`.
 
-    Header layout (v0.1): magic(8) | name_len(2) | name(bytes) | size(8)
+    Header layout (v0.1): magic(4) | version(4) | name_len(2) | name(bytes) | size(8)
     """
     name_bytes = original_name.encode("utf-8")
     if len(name_bytes) > 0xFFFF:
         raise ValueError("filename too long")
     f.write(BRUH_MAGIC)
+    f.write(VERSION)
     f.write(struct.pack(_FILENAME_LEN_FMT, len(name_bytes)))
     f.write(name_bytes)
     f.write(struct.pack(_FILESIZE_FMT, original_size))
@@ -66,6 +72,12 @@ def read_header(f: BinaryIO) -> tuple[str, int]:
     magic = f.read(len(BRUH_MAGIC))
     if magic != BRUH_MAGIC:
         raise ValueError("Not a .bruh file (bad magic)")
+    else:
+        version = f.read(len(VERSION))
+        if version == VERSION:
+            pass
+        else:
+            raise ValueError(f"Unsupported .bruh version: {version.decode('utf-8')}")
     raw = f.read(struct.calcsize(_FILENAME_LEN_FMT))
     if len(raw) != struct.calcsize(_FILENAME_LEN_FMT):
         raise ValueError("Unexpected EOF while reading filename length")
@@ -87,8 +99,7 @@ def pack_file(input_path: Path, output_path: Path) -> None:
 
     data = input_path.read_bytes()
 
-    if data is not None:
-       logger.info("File data read successfully.")
+    logger.info("File data read successfully.")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
