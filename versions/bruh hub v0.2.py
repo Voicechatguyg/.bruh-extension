@@ -19,10 +19,10 @@ from typing import BinaryIO
 BRUH_MAGIC = b"BRUH"  # 4 bytes
 VERSION = b"v0.2"  # 4 bytes
 
-SUPPORTED_VERSIONS = [
+SUPPORTED_VERSIONS = (
     b"v0.1",
     b"v0.2"
-]
+)
 
 _FILENAME_LEN_FMT = ">H"
 _FILESIZE_FMT = ">Q"
