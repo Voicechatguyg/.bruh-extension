@@ -1,19 +1,6 @@
 """
 bruh hub v0.1
 
-Guided tasks (you will implement these):
-- implement `pack_file()` to convert a single file into a .bruh
-- implement `unpack_file()` to read a .bruh and restore the file
-
-Format (v0.1 simple single-file):
-- 8 bytes: signature/magic (e.g. b'BRUHv1\x00')
-- 2 bytes: filename length (unsigned short, big-endian)
-- N bytes: filename (utf-8)
-- 8 bytes: original file size (unsigned long long, big-endian)
-- remaining bytes: raw file data
-
-This file provides helper functions and a CLI. Fill the TODOs
-and run the script to test.
 """
 from __future__ import annotations
 
@@ -94,18 +81,8 @@ def read_header(f: BinaryIO) -> tuple[str, int]:
     return name, original_size
 
 
-# --- TODO: implement these (guided) ---------------------------
+# --- turns a normal file into a .bruh file ---------------------------
 def pack_file(input_path: Path, output_path: Path) -> None:
-    """
-    Turns a normal file into a .bruh file.
-
-    How:
-    1. Use read_bytes() to get the file's data.
-    2. Make the output folder if it doesn't exist.
-    3. Open the .bruh file with "wb" (write binary).
-    4. Use write_header() to add the file info.
-    5. Use write() to put the data inside.
-    """
     logger.info("reading file data from %s", input_path)
 
     data = input_path.read_bytes()
@@ -130,12 +107,6 @@ def unpack_file(bruh_path: Path, output_dir: Path) -> Path:
     """
     Gets the original file back from a .bruh file.
 
-    How:
-    1. Open the .bruh file with "rb" (read binary).
-    2. Use read_header() to get the saved info.
-    3. Use read() to get the original file data.
-    4. Create the output file.
-    5. Use write() to save the data.
     """
     logger.info("reading bruh file from %s", bruh_path)
 
