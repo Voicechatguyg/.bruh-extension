@@ -250,15 +250,15 @@ def decrypt_payload(
         None
     )
 
-#--- bruh functions -------------------------------------------------------------
-def pack_file(input_path: Path) -> bytes:
+#--- payload helpers -------------------------------------------------------------
+def create_payload(input_path: Path) -> bytes:
     name_bytes = input_path.name.encode("utf-8")
     file_data = input_path.read_bytes()
 
     if len(name_bytes) > 0xFFFF:
         raise ValueError("filename too long")  
     
-    payload = b""
+    payload = bytearray()
 
     # filename length
     payload += struct.pack(
@@ -278,5 +278,67 @@ def pack_file(input_path: Path) -> bytes:
     # actual file
     payload += file_data
 
-    return payload
+    return bytes(payload)
 
+def read_payload(payload: bytes) -> tuple[str, bytes]:
+    """
+    Read the payload and return the filename and file data.
+    """
+
+    offset = 0
+
+    # filename length
+    if len(payload) < struct.calcsize(_FILENAME_LEN_FMT):
+        raise ValueError("unexpected end of payload")
+    raw = payload[offset:offset + struct.calcsize(_FILENAME_LEN_FMT)]
+    filename_length = struct.unpack(
+        _FILENAME_LEN_FMT,
+        raw
+    )[0]
+    offset += struct.calcsize(_FILENAME_LEN_FMT)
+
+   # filename
+    name_bytes = payload[offset:offset + filename_length]
+
+    if len(name_bytes) != filename_length:
+        raise ValueError(
+        "unexpected end of payload while reading filename"
+    )
+
+    filename = name_bytes.decode("utf-8")
+    offset += filename_length
+
+    # original size
+    raw = payload[offset:offset + struct.calcsize(_FILESIZE_FMT)]
+    if len(raw) != struct.calcsize(_FILESIZE_FMT):
+        raise ValueError("unexpected end of payload")
+    original_size = struct.unpack(
+        _FILESIZE_FMT,
+        raw
+    )[0]
+    offset += struct.calcsize(_FILESIZE_FMT)
+
+    # actual file data
+    file_data = payload[offset:offset + original_size]
+
+    return filename, file_data
+
+#--- bruh functions -------------------------------------------------------------------
+
+def pack_file(input_path: Path, output_path: Path, key: bytes) -> None:
+    payload = create_payload(input_path)
+    nonce, ciphertext, auth_tag = encrypt_payload(payload, key)
+
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+    
+    with output_path.open("wb") as f:
+        write_header(
+            f,
+            ENCRYPTION_PRIVATE,
+            nonce,
+            ciphertext,
+            auth_tag,
+        )
