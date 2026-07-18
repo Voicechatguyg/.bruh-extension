@@ -1,5 +1,5 @@
 """
-bruh hub v0.3
+bruh hub v0.3.5
 Copyright (C) 2026 YourLocalPotato
 
 This program comes with ABSOLUTELY NO WARRANTY.
@@ -112,7 +112,7 @@ logger = setup_logger()
 # --- startup ------------------------------------------------------------------
 
 def print_startup_banner() -> None:
-    print(".bruh hub v0.3")
+    print(".bruh hub v0.3.5")
     print("Copyright (C) 2026 YourLocalPotato")
     print()
     print("This program comes with ABSOLUTELY NO WARRANTY.")
