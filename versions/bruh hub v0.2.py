@@ -6,6 +6,7 @@ This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions.
 """
+#--- imports ---------------------------------------------------------------
 from __future__ import annotations
 
 import logging
@@ -13,7 +14,10 @@ import struct
 from pathlib import Path
 from typing import BinaryIO
 
-
+#--- version ---------------------------------------------------------
+# v0.2:
+# - basic .bruh file packing/unpacking
+# - added interactive CLI for packing/unpacking files instead of terminal arguments
 # --- constants -------------------------------------------------
 
 BRUH_MAGIC = b"BRUH"  # 4 bytes

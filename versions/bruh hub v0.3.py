@@ -7,23 +7,34 @@ This is free software, and you are welcome to redistribute it
 under certain conditions.
 """
 
+#--- imports -------------------------------------------------------------------
+
 from __future__ import annotations
 
 import logging
+import os
 import struct
+
 from pathlib import Path
 from typing import BinaryIO
+
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-import os
-# --- version 0.3 new features -------------------------------------------------
-# new header version: v0.3
-# encrypted file data using AES-256-GCM
-# backwards compatibility with v0.2 and v0.1 files
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
 
-# --- constants ----------------------------------------------------------------
 
-BRUH_MAGIC = b"BRUH"  # 4 bytes
-VERSION = b"v0.3"  # 4 bytes
+# --- version ------------------------------------------------------------------
+
+# v0.3:
+# - AES-256-GCM encrypted payloads
+# - password based key derivation
+# - salts for encryption keys
+# - improved payload validation
+
+# --- constants -------------------------------------------------------------
+
+BRUH_MAGIC = b"BRUH"
+VERSION = b"v0.3"
 
 SUPPORTED_VERSIONS = (
     b"v0.1",
@@ -31,36 +42,72 @@ SUPPORTED_VERSIONS = (
     b"v0.3",
 )
 
+
+# --- formats ------------------------------------------------------------------
+
 _FILENAME_LEN_FMT = ">H"
 _FILESIZE_FMT = ">Q"
 _ENCRYPTION_TYPE_FMT = ">B"
 
 
-# --- Encryption constants -----------------------------------------------------
+# --- encryption constants -----------------------------------------------------
 
-KEY_SIZE = 32      # AES-256 key size (32 bytes = 256 bits)
-NONCE_SIZE = 12    # AES-GCM nonce size (12 bytes = 96 bits)
-TAG_SIZE = 16      # AES-GCM authentication tag (16 bytes = 128 bits)
+# sizes and values related to encryption
+
+KEY_SIZE = 32
+NONCE_SIZE = 12
+TAG_SIZE = 16
+SALT_SIZE = 16
+PBKDF2_ITERATIONS = 600000
+
 
 ENCRYPTION_PUBLIC = 0x00
 ENCRYPTION_PRIVATE = 0x01
 
-# --- logging -------------------------------------------------------------------
+# --- key derivation -----------------------------------------------------------
+
+# functions that turn passwords into encryption keys
+
+def derive_key(
+    password: str,
+    salt: bytes
+) -> bytes:
+    """
+    Convert a password into a 32 byte AES key.
+    """
+
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=KEY_SIZE,
+        salt=salt,
+        iterations=PBKDF2_ITERATIONS,
+    )
+
+    return kdf.derive(
+        password.encode("utf-8")
+    )
+
+
+# --- logging ------------------------------------------------------------------
 
 def setup_logger(level: int = logging.INFO) -> logging.Logger:
     logger = logging.getLogger("bruh")
     logger.setLevel(level)
 
     if not logger.handlers:
-        sh = logging.StreamHandler()
-        sh.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-        logger.addHandler(sh)
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(levelname)s: %(message)s")
+        )
+        logger.addHandler(handler)
 
     return logger
 
+
 logger = setup_logger()
 
-#--- startup -------------------------------------------------------------------
+
+# --- startup ------------------------------------------------------------------
 
 def print_startup_banner() -> None:
     print(".bruh hub v0.3")
@@ -71,40 +118,39 @@ def print_startup_banner() -> None:
     print("under certain conditions.")
     print()
 
-#--- header helpers -------------------------------------------------------------
 
+# --- header helpers -----------------------------------------------------------
+
+"""
+Write the header for a .bruh file.
+structure:
+magic(4)
+version(4)
+encryption_type(1)
+salt(16)
+nonce(12)
+ciphertext_size(8)
+ciphertext [variable]
+auth_tag(16)
+"""
 def write_header(
     f: BinaryIO,
     encryption_type: int,
+    salt: bytes,
     nonce: bytes,
     ciphertext: bytes,
-    auth_tag: bytes
+    auth_tag: bytes,
 ) -> None:
-    """Write the v0.3 header.
-
-    Header layout:
-
-    magic             4 bytes
-    version           4 bytes
-    encryption type   1 byte
-    nonce             12 bytes
-    ciphertext length 8 bytes
-    ciphertext        [variable amount]
-    auth tag          16 bytes
-
-    Encrypted payload:
-
-    filename length   2 bytes
-    filename          [variable amount]
-    original size     8 bytes
-    file data         [variable amount]
-    """
+    
+    if len(salt) != SALT_SIZE:
+        raise ValueError("invalid salt size")
 
     if len(nonce) != NONCE_SIZE:
         raise ValueError("invalid nonce size")
 
     if len(auth_tag) != TAG_SIZE:
         raise ValueError("invalid authentication tag size")
+
 
     f.write(BRUH_MAGIC)
     f.write(VERSION)
@@ -116,6 +162,8 @@ def write_header(
         )
     )
 
+    f.write(salt)
+
     f.write(nonce)
 
     f.write(
@@ -126,30 +174,33 @@ def write_header(
     )
 
     f.write(ciphertext)
-
     f.write(auth_tag)
+
+
 
 def read_header(
     f: BinaryIO
-) -> tuple[int, bytes, bytes, bytes]:
+) -> tuple[int, bytes, bytes, bytes, bytes]:
 
     magic = f.read(len(BRUH_MAGIC))
 
     if magic != BRUH_MAGIC:
-        raise ValueError("Not a .bruh file (bad magic)")
+        raise ValueError(
+            "Not a .bruh file (bad magic)"
+        )
 
 
     version = f.read(len(VERSION))
 
     if version not in SUPPORTED_VERSIONS:
         raise ValueError(
-            f"Unsupported .bruh version: {version.decode(errors='replace')}"
+            "unsupported .bruh version"
         )
 
 
     if version != VERSION:
         raise ValueError(
-            f".bruh version {version.decode()} requires an older reader"
+            f"{version.decode()} needs an older reader"
         )
 
 
@@ -157,21 +208,42 @@ def read_header(
         struct.calcsize(_ENCRYPTION_TYPE_FMT)
     )
 
+    if len(raw) != struct.calcsize(_ENCRYPTION_TYPE_FMT):
+        raise ValueError(
+            "unexpected end of header"
+        )
+
+
     encryption_type = struct.unpack(
         _ENCRYPTION_TYPE_FMT,
         raw
     )[0]
 
+    salt = f.read(SALT_SIZE)
 
+    if len(salt) != SALT_SIZE:
+        raise ValueError(
+            "invalid salt"
+        )
+    
     nonce = f.read(NONCE_SIZE)
 
     if len(nonce) != NONCE_SIZE:
-        raise ValueError("invalid nonce")
+        raise ValueError(
+            "invalid nonce"
+        )
+    
 
 
     raw = f.read(
         struct.calcsize(_FILESIZE_FMT)
     )
+
+    if len(raw) != struct.calcsize(_FILESIZE_FMT):
+        raise ValueError(
+            "unexpected end of header"
+        )
+
 
     ciphertext_length = struct.unpack(
         _FILESIZE_FMT,
@@ -182,35 +254,40 @@ def read_header(
     ciphertext = f.read(ciphertext_length)
 
     if len(ciphertext) != ciphertext_length:
-        raise ValueError("unexpected end of ciphertext")
+        raise ValueError(
+            "unexpected end of ciphertext"
+        )
 
 
     auth_tag = f.read(TAG_SIZE)
 
     if len(auth_tag) != TAG_SIZE:
-        raise ValueError("invalid authentication tag")
+        raise ValueError(
+            "invalid authentication tag"
+        )
 
 
     return (
         encryption_type,
+        salt,
         nonce,
         ciphertext,
-        auth_tag
+        auth_tag,
     )
 
 
-#--- encryption helpers --------------------------------------------------
+# --- encryption helpers -------------------------------------------------------
 
-def encrypt_payload(payload: bytes, key: bytes) -> tuple[bytes, bytes, bytes]:
-    """
-    Encrypt data using AES-256-GCM.
-
-    Returns:
-    nonce, ciphertext, authentication tag
-    """
+def encrypt_payload(
+    payload: bytes,
+    key: bytes
+) -> tuple[bytes, bytes, bytes]:
 
     if len(key) != KEY_SIZE:
-        raise ValueError("key must be 32 bytes")
+        raise ValueError(
+            "key must be exactly 32 bytes"
+        )
+
 
     nonce = os.urandom(NONCE_SIZE)
 
@@ -222,31 +299,37 @@ def encrypt_payload(payload: bytes, key: bytes) -> tuple[bytes, bytes, bytes]:
         None
     )
 
+
     ciphertext = encrypted[:-TAG_SIZE]
     auth_tag = encrypted[-TAG_SIZE:]
 
-    return nonce, ciphertext, auth_tag
+
+    return (
+        nonce,
+        ciphertext,
+        auth_tag,
+    )
+
+
 
 def decrypt_payload(
     ciphertext: bytes,
     nonce: bytes,
     auth_tag: bytes,
-    key: bytes
+    key: bytes,
 ) -> bytes:
-    """
-    Decrypt AES-256-GCM data.
-    """
 
     if len(key) != KEY_SIZE:
-        raise ValueError("key must be 32 bytes")
+        raise ValueError(
+            "key must be exactly 32 bytes"
+        )
+
 
     aes = AESGCM(key)
 
-    encrypted = ciphertext + auth_tag
-
     return aes.decrypt(
         nonce,
-        encrypted,
+        ciphertext + auth_tag,
         None
     )
 
@@ -282,63 +365,112 @@ def create_payload(input_path: Path) -> bytes:
 
 def read_payload(payload: bytes) -> tuple[str, bytes]:
     """
-    Read the payload and return the filename and file data.
+    Read payload and return filename and file data.
     """
 
     offset = 0
 
-    # filename length
-    if len(payload) < struct.calcsize(_FILENAME_LEN_FMT):
+    size = struct.calcsize(_FILENAME_LEN_FMT)
+
+    if len(payload) < size:
         raise ValueError("unexpected end of payload")
-    raw = payload[offset:offset + struct.calcsize(_FILENAME_LEN_FMT)]
+
+
+    raw = payload[offset:offset + size]
+
     filename_length = struct.unpack(
         _FILENAME_LEN_FMT,
         raw
     )[0]
-    offset += struct.calcsize(_FILENAME_LEN_FMT)
 
-   # filename
+    offset += size
+
+
     name_bytes = payload[offset:offset + filename_length]
 
     if len(name_bytes) != filename_length:
         raise ValueError(
-        "unexpected end of payload while reading filename"
-    )
+            "unexpected end of payload while reading filename"
+        )
+
 
     filename = name_bytes.decode("utf-8")
+
     offset += filename_length
 
-    # original size
-    raw = payload[offset:offset + struct.calcsize(_FILESIZE_FMT)]
-    if len(raw) != struct.calcsize(_FILESIZE_FMT):
+
+    size = struct.calcsize(_FILESIZE_FMT)
+
+    raw = payload[offset:offset + size]
+
+    if len(raw) != size:
         raise ValueError("unexpected end of payload")
+
+
     original_size = struct.unpack(
         _FILESIZE_FMT,
         raw
     )[0]
-    offset += struct.calcsize(_FILESIZE_FMT)
 
-    # actual file data
+    offset += size
+
+
     file_data = payload[offset:offset + original_size]
+
+
+    if len(file_data) != original_size:
+        raise ValueError(
+            "unexpected end of payload while reading file data"
+        )
+
 
     return filename, file_data
 
 #--- bruh functions -------------------------------------------------------------------
 
-def pack_file(input_path: Path, output_path: Path, key: bytes) -> None:
-    payload = create_payload(input_path)
-    nonce, ciphertext, auth_tag = encrypt_payload(payload, key)
+def pack_file(
+    input_path: Path,
+    output_path: Path,
+    key: bytes,
+    salt: bytes
+) -> None:
+    """
+    Create an encrypted .bruh file.
+    """
+
+    if not input_path.exists():
+        raise FileNotFoundError(
+            f"file not found: {input_path}"
+        )
+
+    if not input_path.is_file():
+        raise ValueError(
+            "input path is not a file"
+        )
+
+
+    payload = create_payload(
+        input_path
+    )
+
+    nonce, ciphertext, auth_tag = encrypt_payload(
+        payload,
+        key
+    )
+
 
     output_path.parent.mkdir(
         parents=True,
         exist_ok=True
     )
-    
+
+
     with output_path.open("wb") as f:
         write_header(
             f,
             ENCRYPTION_PRIVATE,
+            salt,
             nonce,
             ciphertext,
-            auth_tag,
+            auth_tag
         )

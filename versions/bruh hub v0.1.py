@@ -6,6 +6,9 @@ This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions.
 """
+
+#--- imports ----------------------------------------------------
+
 from __future__ import annotations
 
 import argparse
@@ -14,6 +17,12 @@ import struct
 from pathlib import Path
 from typing import BinaryIO
 
+#--- version -----------------------------------------------------
+# version 0.1: initial release
+# - pack/unpack a single file into a .bruh file
+# - terminal based
+# - only supports v0.1 .bruh files
+# - does not support compression or encryption (compression not implemented in any version yet, encryption implemented in bruh hub v0.3)
 
 # --- constants -------------------------------------------------
 BRUH_MAGIC = b"BRUH" # 4 bytes
