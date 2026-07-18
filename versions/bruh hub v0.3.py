@@ -474,3 +474,260 @@ def pack_file(
             ciphertext,
             auth_tag
         )
+
+
+
+def unpack_file(
+    bruh_path: Path,
+    output_dir: Path,
+    key: bytes
+) -> Path:
+    """
+    Decrypt and extract a .bruh file.
+    """
+
+    if not bruh_path.exists():
+        raise FileNotFoundError(
+            f".bruh file not found: {bruh_path}"
+        )
+
+    if not bruh_path.is_file():
+        raise ValueError(
+            "bruh path is not a file"
+        )
+
+
+    with bruh_path.open("rb") as f:
+        (
+            encryption_type,
+            salt,
+            nonce,
+            ciphertext,
+            auth_tag
+        ) = read_header(f)
+
+
+    if encryption_type != ENCRYPTION_PRIVATE:
+        raise ValueError(
+            "unsupported encryption type"
+        )
+
+
+    payload = decrypt_payload(
+        ciphertext,
+        nonce,
+        auth_tag,
+        key
+    )
+
+
+    filename, file_data = read_payload(
+        payload
+    )
+
+
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+
+    output_path = output_dir / filename
+
+
+    output_path.write_bytes(
+        file_data
+    )
+
+
+    return output_path
+
+#--- CLI -------------------------------------------------------------------
+# --- UI helpers ------------------------------------------------
+
+def prompt_path(prompt: str) -> Path:
+    while True:
+        p = input(prompt).strip()
+
+        if not p:
+            print("Please enter a path.")
+            continue
+
+        return Path(p)
+    
+def prompt_password() -> str:
+    while True:
+        password = input(
+            "Enter encryption password: "
+        ).strip()
+
+        if not password:
+            print("Password cannot be empty.")
+            continue
+
+        return password
+
+
+# --- main program ----------------------------------------------
+
+def main() -> None:
+    print_startup_banner()
+
+    while True:
+        choice = input(
+            "Pack or unpack? (p/u) or q to quit: "
+        ).strip().lower()
+
+
+        if choice in ("q", "quit"):
+            print("Bye")
+            return
+
+
+        elif choice in ("p", "pack"):
+
+            inp = prompt_path(
+                "Path of file to pack: "
+            )
+
+
+            default_out = inp.with_suffix(
+                inp.suffix + ".bruh"
+            )
+
+
+            out = input(
+                f"Output path (ENTER for {default_out}): "
+            ).strip()
+
+
+            out_path = (
+                Path(out)
+                if out
+                else default_out
+            )
+
+
+            if out_path.exists() and out_path.is_dir():
+                out_path = out_path / (
+                    inp.name + ".bruh"
+                )
+
+                print(
+                    f"Output is a directory — using {out_path}"
+                )
+
+
+            try:
+                password = prompt_password()
+
+                salt = os.urandom(
+                    SALT_SIZE
+                )
+                
+                key = derive_key(
+                    password,
+                    salt
+                )
+
+
+                print("Packing...")
+
+
+                pack_file(
+                    inp,
+                    out_path,
+                    key,
+                    salt
+                )
+
+
+                logger.info(
+                    "packed successfully: %s",
+                    out_path
+                )
+
+
+            except Exception as e:
+                logger.error(
+                    "pack failed: %s",
+                    e
+                )
+
+
+
+        elif choice in ("u", "unpack"):
+
+            bruh = prompt_path(
+                "Path of .bruh file to unpack: "
+            )
+
+
+            outdir = input(
+                "Output directory (ENTER for current folder): "
+            ).strip()
+
+
+            outdir_path = (
+                Path(outdir)
+                if outdir
+                else Path.cwd()
+            )
+
+
+            if outdir_path.exists() and outdir_path.is_file():
+                print(
+                    "Output is a file, using parent directory."
+                )
+
+                outdir_path = outdir_path.parent
+
+
+
+            try:
+                password = prompt_password()
+
+                with bruh.open("rb") as f:
+                    (
+                        encryption_type,
+                        salt,
+                        nonce,
+                        ciphertext,
+                        auth_tag
+                    ) = read_header(f)
+
+                key = derive_key(
+                    password,
+                    salt
+                )
+
+                print("Unpacking...")
+
+                restored = unpack_file(
+                    bruh,
+                    outdir_path,
+                    key
+                )
+
+
+                logger.info(
+                    "restored: %s",
+                    restored
+                )
+
+
+            except Exception as e:
+                logger.error(
+                    "unpack failed: %s",
+                    e
+                )
+
+
+        else:
+            print(
+                "Invalid option — enter 'p', 'u', or 'q'."
+            )
+
+
+if __name__ == "__main__":
+    main()
