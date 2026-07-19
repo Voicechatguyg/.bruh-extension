@@ -1,10 +1,21 @@
 """
-bruh hub v0.1
+bruh hub - v0.1
 Copyright (C) 2026 YourLocalPotato
 
-This program comes with ABSOLUTELY NO WARRANTY.
-This is free software, and you are welcome to redistribute it
-under certain conditions.
+This file is part of bruh hub.
+
+bruh hub is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+bruh hub is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with bruh hub. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>
 """
 
 #--- imports ----------------------------------------------------
@@ -16,6 +27,7 @@ import logging
 import struct
 from pathlib import Path
 from typing import BinaryIO
+import textwrap
 
 #--- version -----------------------------------------------------
 # version 0.1: initial release
@@ -46,16 +58,6 @@ def setup_logger(level: int = logging.INFO) -> logging.Logger:
 
 
 logger = setup_logger()
-
-
-def print_startup_banner() -> None:
-    print(".bruh hub v0.1")
-    print("Copyright (C) 2026 YourLocalPotato")
-    print()
-    print("This program comes with ABSOLUTELY NO WARRANTY.")
-    print("This is free software, and you are welcome to redistribute it")
-    print("under certain conditions.")
-    print()
 
 
 # --- header helpers --------------------------------------------
@@ -160,11 +162,12 @@ def build_parser() -> argparse.ArgumentParser:
     unpack.add_argument("bruh", type=Path, help=".bruh file to unpack")
     unpack.add_argument("outdir", type=Path, nargs="?", default=Path.cwd(), help="Directory to restore file into")
 
+    sub.add_parser("license", help="Print license information")
+
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
-    print_startup_banner()
     p = build_parser()
     args = p.parse_args(argv)
 
@@ -179,7 +182,22 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         logger.info("packed successfully")
         return 0
+    
+    if args.cmd == "license":
+        LICENSE_TEXT = textwrap.dedent("""\
+            bruh hub v0.1
+            Copyright (C) 2026 YourLocalPotato
 
+            Licensed under GNU General Public License v3.0 (GPLv3).
+            Free software: use, study, modify, and redistribute.
+
+            NO WARRANTY.
+            See LICENSE/README for details.
+            https://www.gnu.org/licenses/gpl-3.0.html
+        """)
+
+        print(LICENSE_TEXT)
+        return 0
     if args.cmd == "unpack":
         bruh: Path = args.bruh
         outdir: Path = args.outdir
@@ -193,6 +211,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     return 1
+
+
 
 
 if __name__ == "__main__":

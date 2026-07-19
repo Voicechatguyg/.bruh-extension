@@ -1,10 +1,21 @@
 """
-bruh hub v0.3
+bruh hub - v0.3
 Copyright (C) 2026 YourLocalPotato
 
-This program comes with ABSOLUTELY NO WARRANTY.
-This is free software, and you are welcome to redistribute it
-under certain conditions.
+This file is part of bruh hub.
+
+bruh hub is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+bruh hub is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with bruh hub. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>
 """
 
 #--- imports -------------------------------------------------------------------
@@ -14,6 +25,7 @@ from __future__ import annotations
 import logging
 import os
 import struct
+import textwrap
 
 from pathlib import Path
 from typing import BinaryIO
@@ -110,13 +122,18 @@ logger = setup_logger()
 # --- startup ------------------------------------------------------------------
 
 def print_startup_banner() -> None:
-    print(".bruh hub v0.3")
-    print("Copyright (C) 2026 YourLocalPotato")
-    print()
-    print("This program comes with ABSOLUTELY NO WARRANTY.")
-    print("This is free software, and you are welcome to redistribute it")
-    print("under certain conditions.")
-    print()
+    LICENSE_TEXT = textwrap.dedent("""\
+        bruh hub v0.2
+        Copyright (C) 2026 YourLocalPotato
+
+        Licensed under GNU General Public License v3.0 (GPLv3).
+        Free software: use, study, modify, and redistribute.
+
+        NO WARRANTY.
+        See LICENSE/README for details.
+        https://www.gnu.org/licenses/gpl-3.0.html
+    """)
+    print(LICENSE_TEXT)
 
 
 # --- header helpers -----------------------------------------------------------
