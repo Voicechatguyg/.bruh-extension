@@ -29,7 +29,7 @@ from typing import BinaryIO
 #--- version ---------------------------------------------------------
 # v0.2:
 # - basic .bruh file packing/unpacking
-# - added interactive CLI for packing/unpacking files instead of terminal arguments
+# - added TUI for packing/unpacking files instead of terminal arguments
 # --- constants -------------------------------------------------
 
 BRUH_MAGIC = b"BRUH"  # 4 bytes
@@ -170,7 +170,7 @@ def unpack_file(bruh_path: Path, output_dir: Path) -> Path:
 
     return output_path
 
-
+#--- TUI -------------------------------------------------------------------
 # --- UI helpers ------------------------------------------------
 
 def prompt_path(prompt: str) -> Path:

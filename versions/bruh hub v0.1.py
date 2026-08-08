@@ -42,6 +42,7 @@ VERSION = b"v0.1" # 4 bytes
 _FILENAME_LEN_FMT = ">H"   # unsigned short, big-endian (2 bytes)
 _FILESIZE_FMT = ">Q"       # unsigned long long, big-endian (8 bytes)
 
+#--- logging ---------------------------------------------------
 
 def setup_logger(level: int = logging.INFO) -> logging.Logger:
     """Create and return a simple logger.
@@ -105,7 +106,7 @@ def read_header(f: BinaryIO) -> tuple[str, int]:
     return name, original_size
 
 
-# --- turns a normal file into a .bruh file ---------------------------
+# --- bruh functions --------------------------------------------
 def pack_file(input_path: Path, output_path: Path) -> None:
     logger.info("reading file data from %s", input_path)
 

@@ -73,8 +73,6 @@ TAG_SIZE = 16
 SALT_SIZE = 16
 PBKDF2_ITERATIONS = 600000
 
-
-ENCRYPTION_PUBLIC = 0x00
 ENCRYPTION_PRIVATE = 0x01
 
 # --- key derivation -----------------------------------------------------------
@@ -124,7 +122,7 @@ logger = setup_logger()
 
 def print_startup_banner() -> None:
     LICENSE_TEXT = textwrap.dedent("""\
-        bruh hub v0.2
+        bruh hub v0.3.5s
         Copyright (C) 2026 YourLocalPotato
 
         Licensed under GNU General Public License v3.0 (GPLv3).
@@ -651,7 +649,7 @@ def unpack_legacy_file(
 
     return output_path
 
-#--- CLI -------------------------------------------------------------------
+#--- TUI -------------------------------------------------------------------
 # --- UI helpers ------------------------------------------------
 
 def prompt_path(prompt: str) -> Path:

@@ -40,7 +40,7 @@ from cryptography.hazmat.primitives import hashes
 # v0.3:
 # - AES-256-GCM encrypted payloads
 # - password based key derivation
-# - salts for encryption keys
+# - (random) salts for encryption keys
 # - improved payload validation
 
 # --- constants -------------------------------------------------------------
@@ -73,8 +73,7 @@ SALT_SIZE = 16
 PBKDF2_ITERATIONS = 600000
 
 
-ENCRYPTION_PUBLIC = 0x00
-ENCRYPTION_PRIVATE = 0x01
+ENCRYPTION_PRIVATE = 0x01 # this is preperation for a change we have planned for a future version, *mysterious ambience (im so cringe help)*
 
 # --- key derivation -----------------------------------------------------------
 
@@ -123,7 +122,7 @@ logger = setup_logger()
 
 def print_startup_banner() -> None:
     LICENSE_TEXT = textwrap.dedent("""\
-        bruh hub v0.2
+        bruh hub v0.3
         Copyright (C) 2026 YourLocalPotato
 
         Licensed under GNU General Public License v3.0 (GPLv3).
@@ -559,7 +558,7 @@ def unpack_file(
 
     return output_path
 
-#--- CLI -------------------------------------------------------------------
+#--- TUI -------------------------------------------------------------------
 # --- UI helpers ------------------------------------------------
 
 def prompt_path(prompt: str) -> Path:

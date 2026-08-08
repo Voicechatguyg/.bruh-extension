@@ -66,7 +66,7 @@ bruh hub v0.1.exe license
 ### v0.3.5
 - Added legacy `.bruh` file support for v0.1 and v0.2 files
 
-⚠️ If you encrypt a file with a password, do not lose the password.
+If you encrypt a file with a password, dont not lose the password silly.
 There is no password recovery.
 
 ## Usage
