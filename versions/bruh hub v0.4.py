@@ -21,7 +21,6 @@ along with bruh hub. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>
 
 from __future__ import annotations
 
-from fileinput import filename
 from getpass import getpass
 import logging
 import os
@@ -32,6 +31,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 #--- version --------------------------------------------------------------------------------
@@ -90,12 +90,14 @@ PUBLIC_KEY = bytes.fromhex(
 )
 
 if len(PUBLIC_KEY) != KEY_SIZE:
-    raise RuntimeError("invalid public key length,\n" 
+    print("invalid public key length,\n" 
         "your version of bruh hub is probably broken,\n" 
         "please reinstall it from the official github page:\n" 
         "<https://github.com/Voicechatguyg/.bruh-extension>\n" 
         "(how the hell did you manage to break this bro)"
     )
+    input("Press ENTER to quit...")
+    exit(1)    
 
 # --- TUI prompts -------------------------------------------------------------------
 PROMPT_START = textwrap.dedent("""
@@ -173,6 +175,45 @@ Private:
 
 Press ENTER to return.
 """)
+
+PUBLIC_ENCRYPTION_WARNING_1 = textwrap.dedent("""
+⚠ PUBLIC MODE WARNING
+This does NOT use public-key/asymmetric cryptography.
+The encryption key is built into bruh hub.
+Anyone who has a copy of bruh hub can potentially extract this key
+and decrypt files created in public mode.
+Do NOT use public mode for sensitive or private data.
+do you want to continue? (y/n)
+> 
+""")
+                
+PUBLIC_ENCRYPTION_WARNING_2 = textwrap.dedent("""
+⚠ PUBLIC MODE WARNING
+This is your last warning.
+PUBLIC MODE IS NOT SECURE.
+Anyone with a copy of bruh hub can potentially extract the built-in key
+and decrypt files created in public mode.
+public mode is meant for convenient sharing of non-sensitive files
+not for security.
+Type "i understand" to continue, or anything else to abort.
+> 
+""")
+
+UNPACK_PATH_PROMPT = textwrap.dedent("""
+bruh hub v0.4
+────────────────────────────
+Unpack 
+Enter the path of the .bruh file you want to unpack.
+example: C:\\users\\[username]\\Downloads\\file.bruh
+Path: """
+)
+
+OUTPUT_DIR_PROMPT = textwrap.dedent(f"""
+bruh hub v0.4
+────────────────────────────
+Unpack
+Output location (ENTER for default: {Path(__file__).parent.resolve()}):
+> """)
 
 # --- key derivation -----------------------------------------------------------
 
@@ -314,7 +355,7 @@ def read_header(
         )
 
 
-    if version != VERSION:
+    if version not in (b"v0.3", VERSION):
         raise ValueError(
             f"{version.decode()} needs an older reader"
         )
@@ -426,7 +467,7 @@ def read_legacy_header(f: BinaryIO) -> tuple[str, int]:
 
     return name, original_size
 
-def peek_encryption_type(bruh_path: Path) -> int:
+def peek_encryption_type(bruh_path: Path) -> int | None:
     """Read just the encryption type from the .bruh header."""
     with bruh_path.open("rb") as f:
         # Read magic (4 bytes)
@@ -438,11 +479,15 @@ def peek_encryption_type(bruh_path: Path) -> int:
         version = f.read(4)
         if version not in SUPPORTED_VERSIONS:
             raise ValueError(f"Unsupported version: {version}")
+
+        if version in LEGACY_VERSIONS:
+           return None
         
-        # Read the single encryption type byte
-        raw = f.read(1)
-        if len(raw) != 1:
-            raise ValueError("Truncated header: missing encryption type")
+        else:
+            # Read the single encryption type byte (if not legacy version)
+            raw = f.read(1)
+            if len(raw) != 1:
+                raise ValueError("Truncated header: missing encryption type")
         
         return raw[0]  # Returns 0x00 for public, 0x01 for private
 
@@ -636,6 +681,8 @@ def pack_file(
         exist_ok=True
     )
 
+    if output_path.exists():
+        raise ValueError("output file already exists.")
 
     with output_path.open("wb") as f:
         write_header(
@@ -686,7 +733,7 @@ def unpack_file(
 
         return restored
 
-    elif version == VERSION:
+    elif version in (b"v0.3", VERSION):
         if not bruh_path.exists():
             raise FileNotFoundError(
                 f".bruh file not found: {bruh_path}"
@@ -742,6 +789,8 @@ def unpack_file(
         if Path(filename).is_absolute() or ".." in Path(filename).parts:
             raise ValueError("Malicious filename detected: path traversal attempt")
         output_path = output_dir / safe_name
+        if output_path.exists():
+            raise ValueError("file already exists.")
         output_path.write_bytes(file_data)  
 
         return output_path
@@ -767,13 +816,20 @@ def unpack_legacy_file(
 
         data = f.read(filesize)
 
+        if len(data) != filesize:
+            raise ValueError("Truncated legacy file")
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     safe_name = Path(filename).name
     if Path(filename).is_absolute() or ".." in Path(filename).parts:
         raise ValueError("Malicious filename detected: path traversal attempt")
     output_path = output_dir / safe_name
-    output_path.write_bytes(data)  
+    
+    if output_path.exists():
+        raise ValueError("file already exists.")
+    else:
+        output_path.write_bytes(data)  
 
     return output_path
 
@@ -782,15 +838,15 @@ def unpack_legacy_file(
 
 def prompt_path(prompt: str) -> Path:
     while True:
-        p = input(prompt).strip()
+        p = input(prompt).strip('"').strip("'").strip()
 
         if not p:
             print("Please enter a path.")
             continue
 
-        return Path(p)
+        return Path(p).resolve()
     
-def prompt_password() -> str:
+def prompt_existing_password() -> str:
     while True:
         password = getpass(
             "Enter encryption password: "
@@ -798,6 +854,26 @@ def prompt_password() -> str:
 
         if not password:
             print("Password cannot be empty.")
+            continue
+
+        return password
+
+def prompt_new_password() -> str:
+    while True:
+        password = getpass(
+            "Enter encryption password: "
+        ).strip()
+
+        if not password:
+            print("Password cannot be empty.")
+            continue
+
+        confirmation = getpass(
+            "Confirm encryption password: "
+        ).strip()
+
+        if password != confirmation:
+            print("Passwords do not match.")
             continue
 
         return password
@@ -816,6 +892,7 @@ def main() -> None:
     print_startup_banner()
 
     while True:
+        clear_screen()
         choice = input(PROMPT_START).strip().lower()
 
         if choice in ("q", "quit"):
@@ -834,7 +911,7 @@ def main() -> None:
             )
 
 
-            out = input(PROMPT_PACK_OUTPUT).strip()
+            out = input(PROMPT_PACK_OUTPUT).strip().strip('"').strip("'")
 
 
             out_path = (
@@ -848,47 +925,48 @@ def main() -> None:
                 out_path = out_path / (
                     inp.name + ".bruh"
                 )
+            if inp.resolve() == out_path.resolve():
+                print("input and output paths cannot be the same.")
+                input("Press ENTER to return to main menu...")
+                continue
 
 
             while True:
+                clear_screen()
                 encryption_type = input(PACK_ENCRYPTION_TYPE_PROMPT).strip().lower()
 
                 if encryption_type == "h":
                     print(PACK_ENCRYPTION_TYPE_HELP)
+                    input("Press ENTER to return to encryption type selection...")
                     continue
 
                 elif encryption_type == "c":
                     print("Cancelling pack operation.")
+                    input("Press ENTER to return to main menu...")
                     break
 
                 elif encryption_type not in ("public", "private"):
                     print("Invalid option — enter 'public', 'private', 'h', or 'c'.")
+                    input("Press ENTER to return to encryption type selection...")
                     continue
+
+                else:
+                    break
 
             if encryption_type == "c":
                 continue  # Go back to main menu
 
             if encryption_type == "public":
-                warning_string = textwrap.dedent(
-                    """⚠ PUBLIC MODE WARNING
-                    This does NOT use public-key/asymmetric cryptography.
-                    The encryption key is built into bruh hub.
-                    Anyone who has a copy of bruh hub can potentially extract this key
-                    and decrypt files created in public mode.
-                    Do NOT use public mode for sensitive or private data.
-                    do you want to continue? (y/n)
-                """)
-                continue_state = input(warning_string)
+                continue_state = input(PUBLIC_ENCRYPTION_WARNING_1)
                 if continue_state.strip().lower() not in ("y", "yes"):
                     print("aborting...")
+                    input("Press ENTER to return to main menu...")
                     continue
                 else:
-                    last_warning_string = textwrap.dedent("""[last warning blablabla ts is a placeholder for now]
-                    type "i understand" to continue, or anything else to abort
-                    """)
-                    last_warning_continue_state = input(last_warning_string)
+                    last_warning_continue_state = input(PUBLIC_ENCRYPTION_WARNING_2)
                     if last_warning_continue_state.strip().lower() != "i understand":
                         print("aborting...")
+                        input("Press ENTER to return to main menu...")
                         continue
 
                 encryption_type_value = ENCRYPTION_PUBLIC
@@ -912,10 +990,11 @@ def main() -> None:
                     "packed successfully: %s",
                     out_path
                 )
+                input("Press ENTER to return to main menu...")
 
             elif encryption_type == "private":
                 encryption_type_value = ENCRYPTION_PRIVATE
-                password = prompt_password()
+                password = prompt_new_password()
 
                 salt = os.urandom(
                     SALT_SIZE
@@ -940,7 +1019,7 @@ def main() -> None:
                     "packed successfully: %s",
                     out_path
                 )
-
+                input("Press ENTER to return to main menu...")
 
 
         elif choice in ("u", "unpack"):
@@ -948,19 +1027,19 @@ def main() -> None:
             clear_screen()
 
             bruh = prompt_path(
-                "Path of .bruh file to unpack: "
+                UNPACK_PATH_PROMPT
             )
 
 
             outdir = input(
-                "Output directory (ENTER for current folder): "
-            ).strip()
+                OUTPUT_DIR_PROMPT
+            ).strip().strip('"').strip("'")
 
 
             outdir_path = (
-                Path(outdir)
+                Path(outdir).resolve()
                 if outdir
-                else Path.cwd()
+                else Path(__file__).parent.resolve()
             )
 
 
@@ -975,16 +1054,20 @@ def main() -> None:
 
             try:
                 if not bruh.exists() or not bruh.is_file():
-                    raise FileNotFoundError(
+                    print(
                         f".bruh file not found: {bruh}"
                     )
+                    input("Press ENTER to return to main menu...")
+                    continue
 
                 encryption_type = peek_encryption_type(
                     bruh
                 )
                 if encryption_type == ENCRYPTION_PRIVATE:
-                    password = prompt_password()
+                    password = prompt_existing_password()
                 elif encryption_type == ENCRYPTION_PUBLIC:
+                    password = None
+                elif encryption_type is None:
                     password = None
                 else:
                     raise ValueError(
@@ -993,9 +1076,10 @@ def main() -> None:
 
 
                 if not bruh.exists() or not bruh.is_file():
-                    raise FileNotFoundError(
+                    print(
                         "bro stop trolling me."
                     )
+                    input("Press ENTER to return to main menu...")
 
                 restored = unpack_file(
                     bruh,
@@ -1007,20 +1091,28 @@ def main() -> None:
                     "restored: %s",
                     restored
                 )
+                input("Press ENTER to return to main menu...")
 
+            except InvalidTag:
+                logger.error(
+                    "unpack failed: wrong password or corrupted file"
+                    )
+                input("Press ENTER to return to main menu...")
 
             except Exception as e:
                 logger.error(
                     "unpack failed: %s",
                     e
                 )
+                input("Press ENTER to return to main menu...")
 
 
         else:
             print(
                 "Invalid option — enter 'p', 'u', or 'q'."
             )
-
+            input("Press ENTER to return to main menu...")
 
 if __name__ == "__main__":
     main()
+    input("Press ENTER to quit...")
